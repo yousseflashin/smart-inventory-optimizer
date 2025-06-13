@@ -1,0 +1,2471 @@
+openapi: 3.0.0
+info:
+  title: Smart Inventory Optimizer API
+  description: API documentation for the Smart Inventory Optimizer project
+  version: 1.0.0
+
+servers:
+  - url: "http://localhost:{port}"
+    description: Local server
+    variables:
+      port:
+        default: "2000"
+  - url: https://smart-inventory-optimizer.vercel.app/
+    description: SIO API
+
+paths:
+  /api/insights/get-insights:
+    get:
+      summary: "Get product demand predictions"
+      description: "Retrieves product demand predictions based on forecasting parameters"
+      tags:
+        - "Insights"
+      security:
+        - bearerAuth: []
+      consumes:
+        - "application/json"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "query"
+          name: "numberOfProducts"
+          required: true
+          schema:
+            type: "integer"
+          description: "Number of top products to retrieve"
+          example: 5
+        - in: "query"
+          name: "daysOfForecasting"
+          required: true
+          schema:
+            type: "integer"
+          description: "Number of days to forecast"
+          example: 7
+      responses:
+        "200":
+          description: "Successful response with product predictions"
+          schema:
+            type: "object"
+            properties:
+              data:
+                type: "array"
+                items:
+                  type: "object"
+                  properties:
+                    product:
+                      type: "object"
+                      properties:
+                        id:
+                          type: "string"
+                          description: "Product ID"
+                        name:
+                          type: "string"
+                          description: "Product name"
+                        category:
+                          type: "string"
+                          description: "Product category"
+                        # Add other product fields from your database schema
+                    dailySales:
+                      type: "number"
+                      description: "Forecasted daily sales quantity"
+                    totalAmount:
+                      type: "number"
+                      description: "Total forecasted sales over the period"
+            example:
+              data:
+                [
+                  {
+                    product:
+                      { id: "123", name: "Product A", category: "Electronics" },
+                    dailySales: 15.5,
+                    totalAmount: 108.5,
+                  },
+                ]
+
+        "400":
+          description: "Invalid request parameters"
+          schema:
+            type: "object"
+            properties:
+              error:
+                type: "string"
+            example:
+              error: "Invalid request"
+
+        "500":
+          description: "Internal server error"
+          schema:
+            type: "object"
+            properties:
+              error:
+                type: "string"
+            example:
+              error: "Internal server error"
+
+        "503":
+          description: "Prediction service unavailable"
+          schema:
+            type: "object"
+            properties:
+              error:
+                type: "string"
+            example:
+              error: "Prediction service unavailable"
+
+  /api/insights/get-discounts:
+    get:
+      summary: Retrieve discounts for the business
+      description: Fetches a list of discounts associated with the authenticated user's business, with an optional limit on the number of discounts returned.
+      tags:
+        - "Insights"
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+          description: The maximum number of discounts to return
+      responses:
+        "200":
+          description: Successfully retrieved discounts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Discount"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # Revenue category statistics
+  /api/statistics/monthly-category-revenues:
+    get:
+      summary: Get categoris revenues in spacific duration
+      description: |
+        Retrieves monthly revenue statistics grouped by category for the specified date range.
+        The endpoint aggregates revenue by category and month. Each entry in the response includes the category ID, category name,
+        and an array of monthly revenues where each month is represented in YYYY-MM format.
+      operationId: getMonthlyCategoryRevenues
+      tags:
+        - Statistics:Revenue
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          description: Start date of the period (ISO 8601 format)
+          required: true
+          schema:
+            type: string
+            format: date-time
+            example: "2023-01-01T00:00:00Z"
+        - name: endDate
+          in: query
+          description: End date of the period (ISO 8601 format)
+          required: true
+          schema:
+            type: string
+            format: date-time
+            example: "2023-12-31T23:59:59Z"
+      responses:
+        "200":
+          description: Successful response with monthly category revenue data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        categoryId:
+                          type: number
+                          description: Unique identifier of the category.
+                        categoryName:
+                          type: string
+                          description: Name of the category.
+                        monthlyRevenues:
+                          type: array
+                          description: Array of revenue objects for each month in the given range.
+                          items:
+                            type: object
+                            properties:
+                              month:
+                                type: string
+                                description: Month in YYYY-MM format.
+                                example: "2023-01"
+                              revenue:
+                                type: number
+                                description: Total revenue for the month.
+        "400":
+          description: Bad Request - Missing or invalid startDate/endDate.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "startDate and endDate are required"
+        "500":
+          description: Internal Server Error.
+      x-codeSamples:
+        - lang: JavaScript
+          source: |
+            fetch('/api/statistics/monthly-category-revenues?startDate=2023-01-01T00:00:00Z&endDate=2023-12-31T23:59:59Z', {
+              method: 'GET',
+              headers: {
+                'Authorization': 'Bearer <your_token>',
+                'Content-Type': 'application/json'
+              }
+            })
+            .then(response => response.json())
+            .then(data => console.log(data))
+            .catch(error => console.error('Error:', error));
+  /api/statistics/products-revenues:
+    get:
+      summary: Get revenue of all products for a specific business
+      description: Returns a paginated list of product revenues for the authenticated business.
+      operationId: getProductsRevenues
+      tags:
+        - Statistics:Revenue
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination (default is 1)
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page (default is 10)
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: orderBy
+          in: query
+          description: Order results by revenue ("asc" for ascending, "desc" for descending, default is "desc")
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: Successful response with a list of product revenues
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          description: Name of the product
+                        totalRevenue:
+                          type: number
+                          format: double
+                          description: Total revenue generated by the product
+        "401":
+          description: Unauthorized - Authentication token is missing or invalid
+        "500":
+          description: Internal Server Error
+  /api/statistics/category-revenue:
+    get:
+      summary: Get category revenue statistics
+      description: Retrieves revenue statistics grouped by categoryId for the authenticated business.
+      tags:
+        - Statistics:Revenue
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Successful response with category revenue data.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: integer
+                      description: The ID of the category.
+                    revenueAmount:
+                      type: number
+                      description: Total revenue amount for the category.
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message indicating an internal server error.
+      x-codeSamples:
+        - lang: JavaScript
+          source: |
+            fetch('/api/statistics/category-revenue', {
+              method: 'GET',
+              headers: {
+                'Authorization': 'Bearer <your_token>',
+                'Content-Type': 'application/json'
+              }
+            })
+            .then(response => response.json())
+            .then(data => console.log(data))
+            .catch(error => console.error('Error:', error));
+
+  /api/statistics/yearly-revenue-per-category:
+    get:
+      summary: Get yearly revenue per category
+      description: Fetches the total revenue and units sold per category for a given year.
+      tags:
+        - Statistics:Revenue
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          required: false
+          description: The year for which revenue data is requested (default is the current year)
+          schema:
+            type: integer
+            example: 2024
+      responses:
+        "200":
+          description: Successful response with revenue data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  year:
+                    type: integer
+                    example: 2024
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        categoryName:
+                          type: string
+                          example: "Beverages"
+                        totalRevenue:
+                          type: number
+                          format: float
+                          example: 50000.75
+                        totalUnitsSold:
+                          type: integer
+                          example: 1200
+        "401":
+          description: Unauthorized - Authentication required
+        "500":
+          description: Internal Server Error
+      x-codeSamples:
+        - lang: JavaScript
+          source: |
+            fetch('/api/statistics/category-revenue', {
+              method: 'GET',
+              headers: {
+                'Authorization': 'Bearer <your_token>',
+                'Content-Type': 'application/json'
+              }
+            })
+            .then(response => response.json())
+            .then(data => console.log(data))
+            .catch(error => console.error('Error:', error));
+
+  /api/statistics/yearly-revenue-per-month:
+    get:
+      summary: Get yearly revenue per month
+      description: Retrieves the revenue of a business per month for a given year.
+      tags:
+        - Statistics:Revenue
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: year
+          schema:
+            type: integer
+            example: 2024
+          required: false
+          description: The year for which to fetch revenue data. Defaults to the current year if not provided.
+      responses:
+        "200":
+          description: Successfully retrieved the monthly revenue data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  year:
+                    type: integer
+                    example: 2024
+                  data:
+                    type: object
+                    example:
+                      january: 400
+                      february: 5000
+                      march: 3200
+                      april: 7000
+                      may: 1000
+                      june: 4500
+                      july: 6500
+                      august: 3000
+                      september: 7200
+                      october: 8100
+                      november: 9000
+                      december: 5000
+        "400":
+          description: Invalid request parameters.
+        "401":
+          description: Unauthorized. Authentication is required.
+        "500":
+          description: Internal Server Error.
+
+  /api/statistics/total-revenue-per-year:
+    get:
+      summary: Get total revenue by year
+      description: Retrieves the aggregated total revenue of a business for a given year.
+      tags:
+        - Statistics:Revenue
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: year
+          schema:
+            type: integer
+            example: 2023
+          required: false
+          description: The year for which to fetch the revenue data. Defaults to the current year if not provided.
+      responses:
+        "200":
+          description: Successfully retrieved the total revenue data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  year:
+                    type: integer
+                    example: 2023
+                  totalRevenue:
+                    type: string
+                    example: "150000.00"
+        "400":
+          description: Invalid request parameters.
+        "401":
+          description: Unauthorized. Authentication is required.
+        "500":
+          description: Internal Server Error.
+
+  /api/statistics/total-revenue-per-quarter:
+    get:
+      summary: Get total revenue per quarter
+      description: |
+        Retrieves the total revenue aggregated by quarter for a specified year.
+        For each quarter (1 through 4), the endpoint calculates the total revenue based on the date records,
+        and returns both the revenue for each quarter as well as the overall total revenue for the year.
+      tags:
+        - Statistics:Revenue
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: year
+          schema:
+            type: integer
+            example: 2023
+          required: false
+          description: The year for which to fetch revenue data. Defaults to the current year if not provided.
+      responses:
+        "200":
+          description: Successfully retrieved quarterly revenue data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      year:
+                        type: integer
+                        example: 2023
+                      quarterlyRevenue:
+                        type: array
+                        description: Revenue data aggregated per quarter.
+                        items:
+                          type: object
+                          properties:
+                            quarter:
+                              type: integer
+                              description: The quarter number (1 to 4).
+                              example: 1
+                            totalRevenue:
+                              type: string
+                              description: The total revenue for the quarter.
+                              example: "35000.00"
+                      totalRevenue:
+                        type: string
+                        description: The overall aggregated total revenue for the year.
+                        example: "140000.00"
+        "400":
+          description: Invalid request parameters.
+        "401":
+          description: Unauthorized. Authentication is required.
+        "500":
+          description: Internal Server Error.
+      x-codeSamples:
+        - lang: JavaScript
+          source: |
+            fetch('/api/statistics/total-revenue-per-quarter?year=2023', {
+              method: 'GET',
+              headers: {
+                'Authorization': 'Bearer <your_token>',
+                'Content-Type': 'application/json'
+              }
+            })
+            .then(response => response.json())
+            .then(data => console.log(data))
+            .catch(error => console.error('Error:', error));
+  /api/statistics/categories-expiringsoon:
+    get:
+      summary: Get categories with products expiring soon
+      description: |
+        Retrieves a paginated list of categories that have products with batches expiring within the next month.
+        For each category, the response includes the category ID, category name, and an array of products.
+        Each product contains its ID, name, and batch details (expiry date and aggregated quantity).
+      operationId: getCategoriesExpiringSoon
+      tags:
+        - Statistics:expiringDate
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          description: Page number for pagination (default is 1)
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          description: Number of items per page (default is 10)
+          required: false
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Successfully retrieved categories with products expiring soon.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        categoryId:
+                          type: number
+                          description: Unique identifier of the category.
+                          example: 1
+                        categoryName:
+                          type: string
+                          description: Name of the category.
+                          example: "Beverages"
+                        products:
+                          type: array
+                          description: List of products under the category.
+                          items:
+                            type: object
+                            properties:
+                              productId:
+                                type: number
+                                description: Unique identifier of the product.
+                                example: 101
+                              productName:
+                                type: string
+                                description: Name of the product.
+                                example: "Orange Juice"
+                              batches:
+                                type: array
+                                description: List of batch details with expiry date and aggregated quantity.
+                                items:
+                                  type: object
+                                  properties:
+                                    expiryDate:
+                                      type: string
+                                      format: date-time
+                                      description: Expiry date of the batch.
+                                      example: "2024-05-15T00:00:00Z"
+                                    quantity:
+                                      type: number
+                                      description: Aggregated quantity of the batch.
+                                      example: 50
+        "400":
+          description: Invalid request parameters.
+        "401":
+          description: Unauthorized. Authentication is required.
+        "500":
+          description: Internal Server Error.
+      x-codeSamples:
+        - lang: JavaScript
+          source: |
+            fetch('/api/statistics/categories-expiringsoon?page=1&limit=10', {
+              method: 'GET',
+              headers: {
+                'Authorization': 'Bearer <your_token>',
+                'Content-Type': 'application/json'
+              }
+            })
+            .then(response => response.json())
+            .then(data => console.log(data))
+            .catch(error => console.error('Error:', error));
+
+  /api/statistics/products-expiringsoon:
+    get:
+      summary: Get products expiring soon between now and the next month
+      description: |
+        Retrieves a paginated list of products with batches expiring within the next month.
+        Each entry includes the product ID, product name, expiry date, and the aggregated quantity of items expiring.
+      operationId: getProductsExpiringSoon
+      tags:
+        - Statistics:expiringDate
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination (default is 1)
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page (default is 10)
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: orderBy
+          in: query
+          description: Order results by expiry date ("asc" for ascending, "desc" for descending; default is "asc")
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        "200":
+          description: Successful response with a list of products expiring soon.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        productId:
+                          type: integer
+                          description: Unique identifier of the product.
+                        productName:
+                          type: string
+                          description: Name of the product.
+                        expiryDate:
+                          type: string
+                          format: date-time
+                          description: Expiry date of the product batch.
+                        quantity:
+                          type: number
+                          description: Aggregated quantity of products expiring.
+        "401":
+          description: Unauthorized - Authentication token is missing or invalid.
+        "500":
+          description: Internal Server Error.
+      x-codeSamples:
+        - lang: JavaScript
+          source: |
+            fetch('/api/products/expiring-soon?page=1&limit=10&orderBy=asc', {
+              method: 'GET',
+              headers: {
+                'Authorization': 'Bearer <your_token>',
+                'Content-Type': 'application/json'
+              }
+            })
+            .then(response => response.json())
+            .then(data => console.log(data))
+            .catch(error => console.error('Error:', error));
+
+  /api/statistics/products-stock:
+    get:
+      summary: Get products with low current stock levels
+      description: Returns a paginated list of products that have stock levels less than or equal to 20 for the authenticated business.
+      operationId: getProductsStock
+      tags:
+        - Statistics:stock
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination (default is 1)
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page (default is 10)
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: orderBy
+          in: query
+          description: Order results by stock level ("asc" for ascending, "desc" for descending, default is "asc")
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        "200":
+          description: Successful response with a list of products with low stock levels
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          description: Name of the product
+                        currentStock:
+                          type: integer
+                          description: Current stock level of the product
+        "401":
+          description: Unauthorized - Authentication token is missing or invalid
+        "500":
+          description: Internal Server Error
+
+  /api/statistics/products-sales:
+    get:
+      summary: Get Top Sales Products
+      description: >
+        Retrieves top sales products for the authenticated business.
+        Supports optional filters:
+          - Filter by product category (by category name)
+          - Filter by specific month and/or year
+        Returns a paginated list of products with their total units sold.
+      operationId: getProductSales
+      tags:
+        - Statistics:sales
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination (default is 1)
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page (default is 10)
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: orderBy
+          in: query
+          description: Order results by totalUnitsSold ("asc" for ascending, "desc" for descending, default is "desc")
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: category
+          in: query
+          description: Filter by product category id
+          required: false
+          schema:
+            type: integer
+        - name: month
+          in: query
+          description: Filter by month (numeric)
+          required: false
+          schema:
+            type: integer
+        - name: year
+          in: query
+          description: Filter by year (numeric)
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response with a list of product sales
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        totalUnitsSold:
+                          type: integer
+                          description: Total number of units sold for the product
+                        product:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                              description: Name of the product
+        "404":
+          description: Not Found - Category not found (if filtering by category)
+        "401":
+          description: Unauthorized - Authentication token is missing or invalid
+        "500":
+          description: Internal Server Error
+
+  /api/statistics/category-sales:
+    get:
+      summary: Get Top Sales Categories
+      description: >
+        Retrieves top sales categories for the authenticated business.
+        Returns a paginated list of categories with their total units sold.
+      operationId: getCategorySales
+      tags:
+        - Statistics:sales
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination (default is 1)
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page (default is 10)
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: orderBy
+          in: query
+          description: Order results by totalUnitsSold ("asc" for ascending, "desc" for descending, default is "desc")
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: Successful response with a list of category sales
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        totalUnitsSold:
+                          type: integer
+                          description: Total number of units sold for the category
+                        category:
+                          type: object
+                          properties:
+                            categoryName:
+                              type: string
+                              description: Name of the category
+        "401":
+          description: Unauthorized - Authentication token is missing or invalid
+        "500":
+          description: Internal Server Error
+
+  /api/statistics/transactions:
+    get:
+      summary: Get Transaction History
+      description: >
+        Retrieves transaction history for the authenticated business for a specific date.
+        The `date` query parameter is used to specify the day (using the fullDate range from midnight to midnight).
+      operationId: getTransactionHistory
+      tags:
+        - Statistics:transactions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          description: >
+            formatted date example (e.g., "MM-DD-YYYY") to filter transactions on that day.
+            If omitted, the current date is used.
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Successful response with a list of transactions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        transactionId:
+                          type: integer
+                          description: Unique identifier for the transaction.
+                        businessId:
+                          type: string
+                          description: Business identifier.
+                        productId:
+                          type: integer
+                          description: Product identifier.
+                        dateId:
+                          type: integer
+                          description: Identifier for the related date record.
+                        amount:
+                          type: integer
+                          description: The transaction amount.
+                        discount:
+                          type: number
+                          format: float
+                          description: Discount applied to the transaction.
+                        date:
+                          type: object
+                          description: The related date dimension record.
+                          properties:
+                            dateId:
+                              type: integer
+                            fullDate:
+                              type: string
+                              format: date-time
+                            day:
+                              type: integer
+                            week:
+                              type: integer
+                            month:
+                              type: integer
+                            quarter:
+                              type: integer
+                            year:
+                              type: integer
+                        product:
+                          type: object
+                          description: The related product dimension record.
+                          properties:
+                            productId:
+                              type: integer
+                            name:
+                              type: string
+                            categoryId:
+                              type: integer
+                            businessId:
+                              type: string
+                        business:
+                          type: object
+                          description: The related business dimension record.
+                          properties:
+                            businessId:
+                              type: string
+                            businessName:
+                              type: string
+                        batch:
+                          type: object
+                          description: The related batch dimension record.
+                          properties:
+                            sellingPrice:
+                              type: integer
+                            expiryDate:
+                              type: string
+                              format: date
+        "401":
+          description: Unauthorized - Authentication token is missing or invalid.
+        "500":
+          description: Internal Server Error.
+
+  /api/statistics/products-sale-trend/{year}:
+    get:
+      summary: Get Top 3 Products by Units Sold
+      description: Retrieves the top 3 products by total units sold for a given year, with monthly breakdowns.
+      operationId: getProductsSaleTrend
+      tags:
+        - Statistics:Trend
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 2025
+          description: The year for which to retrieve the sales trend
+      responses:
+        "200":
+          description: Successful response with monthly sales data for top 3 products
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyTrend"
+        "400":
+          description: Invalid year parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized - Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No data found for the specified year
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoData"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/statistics/categories-sale-trend/{year}:
+    get:
+      summary: Get Top 3 Categories by Units Sold
+      description: Retrieves the top 3 categories by total units sold for a given year, with monthly breakdowns.
+      operationId: getCategoriesSaleTrend
+      tags:
+        - Statistics:Trend
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 2025
+          description: The year for which to retrieve the sales trend
+      responses:
+        "200":
+          description: Successful response with monthly sales data for top 3 categories
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyTrend"
+        "400":
+          description: Invalid year parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized - Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No data found for the specified year
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoData"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/statistics/products-revenue-trend/{year}:
+    get:
+      summary: Get Top 3 Products by Revenue
+      description: Retrieves the top 3 products by total revenue for a given year, with monthly breakdowns.
+      operationId: getProductsRevenueTrend
+      tags:
+        - Statistics:Trend
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 2025
+          description: The year for which to retrieve the revenue trend
+      responses:
+        "200":
+          description: Successful response with monthly revenue data for top 3 products
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyTrend"
+              example:
+                "Product A":
+                  january: 1000.50
+                  february: 1500.75
+                  march: 1200.25
+                  april: 0.00
+                  may: 0.00
+                  june: 0.00
+                  july: 0.00
+                  august: 0.00
+                  september: 0.00
+                  october: 0.00
+                  november: 0.00
+                  december: 0.00
+        "400":
+          description: Invalid year parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized - Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No data found for the specified year
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoData"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/statistics/categories-revenue-trend/{year}:
+    get:
+      summary: Get Top 3 Categories by Revenue
+      description: Retrieves the top 3 categories by total revenue for a given year, with monthly breakdowns.
+      operationId: getCategoriesRevenueTrend
+      tags:
+        - Statistics:Trend
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 2025
+          description: The year for which to retrieve the revenue trend
+      responses:
+        "200":
+          description: Successful response with monthly revenue data for top 3 categories
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyTrend"
+        "400":
+          description: Invalid year parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized - Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No data found for the specified year
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoData"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/auth/login:
+    post:
+      summary: Authenticate user and return JWT token
+      description: Authenticates user credentials and returns a JWT token in the Authorization header
+      operationId: login
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: "admin"
+                password:
+                  type: string
+                  example: "12345678"
+      responses:
+        "200":
+          description: Successfully authenticated
+          headers:
+            Authorization:
+              schema:
+                type: string
+              description: JWT token for authenticated requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Login successfully"
+                  token:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        "400":
+          description: Bad Request - Invalid input or incorrect credentials
+        "500":
+          description: Internal Server Error
+
+  /api/auth/forget-password:
+    post:
+      summary: Initiate password reset process
+      description: Sends password reset instructions to the user's email (test implementation returns token)
+      operationId: forgetPassword
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "user@example.com"
+      responses:
+        "201":
+          description: Reset instructions sent (test implementation returns token)
+          headers:
+            Authorization:
+              schema:
+                type: string
+              description: JWT token (test implementation only)
+        "404":
+          description: Not Found - Email not registered
+        "500":
+          description: Internal Server Error
+
+  /api/auth/reset-password:
+    post:
+      summary: Reset user password
+      description: Reset user password using a valid JWT token
+      operationId: resetPassword
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+                  example: "newSecurePassword123"
+      responses:
+        "200":
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password updated successfully"
+        "400":
+          description: Bad Request - Invalid input
+        "401":
+          description: Unauthorized - Invalid or missing token
+        "500":
+          description: Internal Server Error
+
+  /api/auth/register:
+    post:
+      summary: Register new admin and business
+      description: Creates a new business entity and its admin user
+      operationId: createAdmin
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - admin
+                - business
+              properties:
+                admin:
+                  type: object
+                  required:
+                    - email
+                    - username
+                    - password
+                  properties:
+                    name:
+                      type: string
+                      example: "John Doe"
+                    email:
+                      type: string
+                      format: email
+                      example: "admin@business.com"
+                    username:
+                      type: string
+                      example: "admin_user"
+                    password:
+                      type: string
+                      example: "securePassword123"
+                    phoneNumber:
+                      type: string
+                      example: "+1234567890"
+                business:
+                  type: object
+                  required:
+                    - name
+                    - establishmentDate
+                  properties:
+                    name:
+                      type: string
+                      example: "Awesome Business LLC"
+                    establishmentDate:
+                      type: string
+                      format: date-time
+                      example: "2023-01-01T00:00:00Z"
+                    description:
+                      type: string
+                      example: "A sample business description"
+      responses:
+        "201":
+          description: Admin and business created successfully
+          headers:
+            Authorization:
+              schema:
+                type: string
+              description: JWT token for the created admin
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Admin and Business created successfully"
+                  admin:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      email:
+                        type: string
+                  business:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                  token:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        "400":
+          description: Bad Request - Missing data or validation error
+        "500":
+          description: Internal Server Error
+
+  /api/staff:
+    post:
+      summary: Create a new staff member
+      description: Creates a new staff member under the authenticated admin's business.
+      operationId: createStaff
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                staff:
+                  type: object
+                  required:
+                    - email
+                    - username
+                    - password
+                  properties:
+                    name:
+                      type: string
+                      maxLength: 30
+                      example: "John Doe"
+                    email:
+                      type: string
+                      format: email
+                      example: "john.doe@example.com"
+                    username:
+                      type: string
+                      example: "johndoe"
+                    password:
+                      type: string
+                      minLength: 8
+                      example: "secretPassword123"
+                    phoneNumber:
+                      type: string
+                      example: "+1234567890"
+              required:
+                - staff
+      responses:
+        "201":
+          description: Staff created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Staff created successfully"
+                  Staff:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      email:
+                        type: string
+                        format: email
+                        example: "john.doe@example.com"
+                  business:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 10
+        "400":
+          description: Bad Request - Missing or invalid data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User with this email already exists"
+        "401":
+          description: Unauthorized - Authentication token is missing or invalid
+        "403":
+          description: Forbidden - Access denied
+        "500":
+          description: Internal Server Error
+
+    get:
+      summary: List staff members
+      description: Returns a paginated list of staff members for the authenticated business.
+      operationId: listStaff
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination (default is 1)
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: orderBy
+          in: query
+          description: Field to sort results by (default is name)
+          required: false
+          schema:
+            type: string
+            default: name
+        - name: sortOrder
+          in: query
+          description: Sort order ("asc" for ascending, "desc" for descending; default is asc)
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        "200":
+          description: Successful response with a list of staff members
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Success"
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        name:
+                          type: string
+                          example: "John Doe"
+                        email:
+                          type: string
+                          format: email
+                          example: "john.doe@example.com"
+                        username:
+                          type: string
+                          example: "johndoe"
+                        phoneNumber:
+                          type: string
+                          example: "+1234567890"
+                        createdAt:
+                          type: string
+                          format: date-time
+                          example: "2023-01-01T00:00:00Z"
+        "400":
+          description: Bad Request - Invalid query parameters
+        "401":
+          description: Unauthorized - Authentication token is missing or invalid
+        "403":
+          description: Forbidden - Access denied
+        "500":
+          description: Internal Server Error
+
+  /api/staff/{userId}:
+    delete:
+      summary: Delete a staff member
+      description: Deletes the specified staff member from the authenticated business.
+      operationId: deleteStaff
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          description: The ID of the staff member to delete
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Staff member deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "successfully deleted staff with id: 1"
+        "400":
+          description: Bad Request - Invalid user ID or missing data
+        "401":
+          description: Unauthorized - Authentication token is missing or invalid
+        "403":
+          description: Forbidden - Access denied
+        "404":
+          description: Not Found - Staff member not found
+        "500":
+          description: Internal Server Error
+
+  /api/storage/upload/{type}:
+    get:
+      summary: Generate a signed upload URL
+      description: >
+        Generates a signed URL for uploading an image or CSV file for the authenticated business.
+        The file type is specified as a path parameter.
+      operationId: getSignedUploadURL
+      tags:
+        - Storage
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: type
+          required: true
+          schema:
+            type: string
+            enum:
+              - image
+              - csv
+          description: Type of file to be uploaded. Allowed values are "image" and "csv".
+      responses:
+        "200":
+          description: Signed upload URL generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  URL:
+                    type: string
+                    description: Signed URL for uploading the file
+                    example: "https://example.com/upload/signedUrl"
+                  token:
+                    type: string
+                    description: Token associated with the signed URL
+                    example: "abc123token"
+        "400":
+          description: Bad Request - Invalid file type provided
+        "401":
+          description: Unauthorized - Authentication token is missing or invalid
+        "403":
+          description: Forbidden - Access denied
+        "500":
+          description: Internal Server Error - Could not generate signed upload URL
+
+  /api/storage/ack:
+    post:
+      summary: send acknowledgement to the server
+      operationId: ack
+      tags:
+        - Storage
+      security:
+        - bearerAuth: []
+
+  /api/storage/access:
+    get:
+      summary: Generate a signed access URL
+      description: Generates a signed URL for accessing the business profile image.
+      operationId: getSignedAccessURL
+      tags:
+        - Storage
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Signed access URL generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  URL:
+                    type: string
+                    description: Signed URL for accessing the image
+                    example: "https://example.com/access/signedUrl"
+        "401":
+          description: Unauthorized - Authentication token is missing or invalid
+        "403":
+          description: Forbidden - Access denied
+        "500":
+          description: Internal Server Error - Could not generate signed URL
+
+  /api/storage/delete:
+    delete:
+      summary: Delete profile image
+      description: Deletes the profile image for the authenticated business.
+      operationId: deleteURL
+      tags:
+        - Storage
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Object deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "object deleted successfully"
+        "401":
+          description: Unauthorized - Authentication token is missing or invalid
+        "403":
+          description: Forbidden - Access denied
+        "500":
+          description: Internal Server Error - Could not delete object
+
+  /api/submission/csv:
+    get:
+      summary: Get CSV submission statuses
+      description: >
+        Retrieves CSV submission statuses for the authenticated business.
+        Returns a list of CSV submissions including their unique ID, current status,
+        uploaded date, and any errors encountered during processing.
+      operationId: listSubmissions
+      tags:
+        - Submission
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Successful response with a list of CSV submission statuses.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          description: Unique identifier of the CSV submission.
+                        status:
+                          type: string
+                          description: Current status of the CSV submission.
+                        uploadedDate:
+                          type: string
+                          format: date-time
+                          description: Date and time when the CSV was uploaded.
+                        errors:
+                          type: string
+                          description: Error details if any issues were encountered.
+        "401":
+          description: Unauthorized - Authentication token is missing or invalid.
+        "500":
+          description: Internal Server Error.
+
+  /api/products:
+    post:
+      summary: Create a new product
+      description: Creates a new product for the authenticated business user.
+      tags:
+        - Products
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: The name of the product.
+                categoryId:
+                  type: integer
+                  description: The ID of the category to which the product belongs (optional).
+              required:
+                - name
+      responses:
+        "201":
+          description: Product created successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Success message.
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        description: The unique identifier of the created product.
+                      name:
+                        type: string
+                        description: The name of the product.
+                      categoryId:
+                        type: integer
+                        description: The ID of the category to which the product belongs.
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message indicating the reason for failure.
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message indicating an internal server error.
+      x-codeSamples:
+        - lang: JavaScript
+          source: |
+            fetch('/products', {
+              method: 'POST',
+              headers: {
+                'Authorization': 'Bearer <your_token>',
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                name: 'Sample Product',
+                categoryId: 1
+              })
+            })
+            .then(response => response.json())
+            .then(data => console.log(data))
+            .catch(error => console.error('Error:', error));
+
+  /api/categories:
+    get:
+      summary: Get list of categories
+      description: Retrieves all categories from the database.
+      operationId: listCategories
+      tags:
+        - Categories
+      responses:
+        "200":
+          description: A list of categories.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 4
+                    name:
+                      type: string
+                      example: "Dairy Products"
+                    description:
+                      type: string
+                      example: "Milk, cheese, and other dairy products"
+                    hasExpiryDate:
+                      type: boolean
+                      example: true
+                    image:
+                      type: string
+                      nullable: true
+                      example: null
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "An error occurred while fetching categories"
+  /api/notifications/products-prediction:
+    get:
+      summary: "Get product demand predictions"
+      description: |
+        Retrieves top product demand predictions for the authenticated business.
+        Returns the top 5 products with their forecasted total sales amounts 
+        for the next 7 days.
+      tags:
+        - "Notification"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Successful response with product predictions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        productName:
+                          type: string
+                          description: Name of the product
+                        categoryName:
+                          type: string
+                          description: Category of the product
+                        totalAmount:
+                          type: number
+                          description: Forecasted total sales amount for next 7 days
+              example:
+                data:
+                  - productName: "BMW X5 2013"
+                    categoryName: "vehicle"
+                    totalAmount: 24
+                  - productName: "Lexus CT 200h 2012"
+                    categoryName: "vehicle"
+                    totalAmount: 24
+                  - productName: "Kia Sportage 2006"
+                    categoryName: "vehicle"
+                    totalAmount: 22
+                  - productName: "Lexus GX 470 2008"
+                    categoryName: "vehicle"
+                    totalAmount: 22
+                  - productName: "Dodge Ram Pickup 1500 2004"
+                    categoryName: "vehicle"
+                    totalAmount: 21
+          links: {}
+
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Invalid request parameters"
+          links: {}
+
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Internal server error"
+          links: {}
+
+        "503":
+          description: Prediction service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Prediction service unavailable"
+          links: {}
+
+  /api/notifications/low-stock:
+    get:
+      summary: "Get low stock predictions"
+      description: |
+        Identifies products at risk of stockouts by comparing inventory levels with 
+        predicted demand. Returns products where predicted demand exceeds current stock.
+
+        Calculation:
+        - Predicted demand = Forecasted sales from insights
+        - Current stock = Latest inventory records
+        - Difference = Predicted demand - Current stock (positive values indicate risk)
+      tags:
+        - "Notification"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Successful response with low stock predictions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        productName:
+                          type: string
+                          description: Name of at-risk product
+                        predictedStock:
+                          type: number
+                          description: Forecasted sales demand (7-day prediction)
+                        inventoryStock:
+                          type: number
+                          description: Current available stock quantity
+                        difference:
+                          type: number
+                          description: "Stock deficit (positive values indicate needed restock)"
+                        categoryName:
+                          type: string
+                          description: Product category
+              example:
+                data:
+                  - productName: "BMW X5 2013"
+                    predictedStock: 24
+                    inventoryStock: 0
+                    difference: 24
+                    categoryName: "vehicle"
+                  - productName: "Lexus CT 200h 2012"
+                    predictedStock: 24
+                    inventoryStock: 0
+                    difference: 24
+                    categoryName: "vehicle"
+
+        "400":
+          description: Invalid request or missing business context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Invalid request"
+
+        "401":
+          description: Unauthorized - Missing or invalid authentication token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "503":
+          description: Prediction service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Prediction service unavailable"
+
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  api/notifications/expiring-soon:
+    get:
+      summary: "Get products expiring soon"
+      description: |
+        Retrieves products with batches expiring within the next month.
+        Returns up to 5 products with their earliest expiry dates,
+        ordered by closest expiration date first.
+
+        Features:
+        - Only considers batches that haven't expired yet
+        - Shows earliest expiry date per product
+        - Includes product category information
+      tags:
+        - "Notification"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Successful response with expiring products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        productName:
+                          type: string
+                          description: Name of the expiring product
+                        categoryName:
+                          type: string
+                          description: Product category name
+                        expiryDate:
+                          type: string
+                          format: date-time
+                          description: Earliest expiration date for this product
+              example:
+                data:
+                  - productName: "Fresh Milk"
+                    categoryName: "Dairy"
+                    expiryDate: "2024-06-15T00:00:00Z"
+                    quantity: 10
+
+        "400":
+          description: Invalid request or missing business context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Invalid request"
+
+        "401":
+          description: Unauthorized - Missing or invalid authentication token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/notifications/get-notifications:
+    get:
+      summary: "Get business's notifications"
+      description: |
+        Retrieves all notifications for the authenticated business.
+        Features:
+        - Returns all 3 notification types (even with empty data)
+        - Ordered by most recent first
+        - Structured product data in notifications
+      tags:
+        - "Notification"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Successful response with today's notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          description: Unique notification ID
+                        date:
+                          type: string
+                          format: date-time
+                          description: Notification creation timestamp in UTC
+                        description:
+                          type: object
+                          additionalProperties: true
+                          description: Structured notification details
+                        title:
+                          type: string
+                          description: Notification title
+                        businessId:
+                          type: string
+                          format: uuid
+                          description: Associated business ID
+              example:
+                data:
+                  - title: "Products Expiring Soon"
+                    date: "2024-03-15T09:30:00.000Z"
+                    data:
+                      - productName: "Organic Whole Milk"
+                        categoryName: "Dairy"
+                        expiryDate: "2024-03-25T00:00:00.000Z"
+                        quantity: 10
+
+                  - title: "Products Demand Prediction"
+                    date: "2024-03-15T14:45:00.000Z"
+                    data:
+                      - productName: "iPhone 15 Pro"
+                        totalAmount: 58
+                        categoryName: "Electronics"
+
+                  - title: "Low Stock Prediction"
+                    date: "2024-03-15T11:15:00.000Z"
+                    data:
+                      - productName: "Premium Coffee Beans"
+                        predictedStock: 120
+                        inventoryStock: 85
+                        difference: 35
+                        categoryName: "Beverages"
+
+        "400":
+          description: Invalid request or missing business context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Invalid request"
+
+        "401":
+          description: Unauthorized - Missing or invalid authentication token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/notifications/delete-notification/{id}:
+    delete:
+      summary: "Delete a specific notification"
+      description: |
+        Permanently deletes a notification by ID that belongs to the authenticated business.
+        Security:
+        - Only allows deletion of notifications belonging to the requestor's business
+        - Notification ID must exist and be owned by the business
+      tags:
+        - "Notification"
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: ID of the notification to delete
+      responses:
+        "200":
+          description: Successfully deleted notification
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Notification"
+              example:
+                data:
+                  id: 41
+                  date: "2024-02-20T02:15:00.000Z"
+                  description:
+                    alertType: "LOW_STOCK"
+                    productId: 123
+                    currentStock: 8
+                    threshold: 10
+                  title: "Low Stock Alert"
+                  businessId: "b5e9d8f2-1a9b-4b1e-9c6f-7d3e4f5a6b7c"
+        "400":
+          description: Invalid ID format or missing business context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                invalidId:
+                  value:
+                    error: "Invalid notification ID"
+                missingBusiness:
+                  value:
+                    error: "Invalid request"
+        "401":
+          description: Unauthorized - Missing or invalid authentication token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Notification not found or not owned by business
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Notification not found"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    MonthlyTrend:
+      type: object
+      additionalProperties:
+        type: object
+        properties:
+          january:
+            type: number
+          february:
+            type: number
+          march:
+            type: number
+          april:
+            type: number
+          may:
+            type: number
+          june:
+            type: number
+          july:
+            type: number
+          august:
+            type: number
+          september:
+            type: number
+          october:
+            type: number
+          november:
+            type: number
+          december:
+            type: number
+        required:
+          - january
+          - february
+          - march
+          - april
+          - may
+          - june
+          - july
+          - august
+          - september
+          - october
+          - november
+          - december
+      example:
+        "Product A":
+          january: 100
+          february: 150
+          march: 120
+          april: 0
+          may: 0
+          june: 0
+          july: 0
+          august: 0
+          september: 0
+          october: 0
+          november: 0
+          december: 0
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+      example:
+        message: "Valid year parameter is required"
+
+    NoData:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+      example:
+        message: "No product sales data found for the specified year"
+
+    Discount:
+      type: object
+      properties:
+        productName:
+          type: string
+          example: "Product A"
+        suggestedDiscount:
+          type: number
+          example: 20.5
+        categoryName:
+          type: string
+          example: "Electronics"
+        batchId:
+          type: integer
+          example: 123
+        productPrice:
+          type: number
+          example: 18432.2155
+        productPriceAfterDiscount:
+          type: number
+          example: 14688.00
+        productId:
+          type: integer
+          example: 456
